@@ -16,6 +16,7 @@ mongoose();
 app.post('/infect/today', (req, res) => {
     let today = new Date().toISOString().split('T')[0];
     InfectOnedaySchema.find({create_date: {$regex: '.*' + today + '.*'}}).then((result) => {
+        console.log(result);
         if(result.length > 0){
             let data = {
                 version: "2.0",
@@ -23,8 +24,8 @@ app.post('/infect/today', (req, res) => {
                   outputs: [
                     {
                       basicCard: {
-                        title: "보물상자",
-                        description: "보물상자 안에는 뭐가 있을까"
+                        title: "금일 코로나 조회",
+                        description: "총 확진자 : " + result[0].decide_count + "\n" + "총 사망자 : " + result[0].death_count
                       }
                     }
                   ]
