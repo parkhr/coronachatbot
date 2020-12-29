@@ -1,6 +1,8 @@
 const express = require('express');
 const mongoose = require('./models/connect');
 const request = require('request');
+var morgan = require('morgan');
+
 require('dotenv').config();
 const app = express();
 const port = 3000;
@@ -9,6 +11,9 @@ const InfectOnedaySchema = require('./models/infect');
 
 // db connect
 mongoose();
+
+// morgan log
+app.use(morgan('combined'));
 
 /**
  * 오늘 확진자 현황 조회
@@ -31,7 +36,8 @@ app.post('/infect/today', (req, res) => {
                     // 전날 데이터라면 오늘과 비교
                     if(totalData[i].seq != todayData[0].seq) {
                         decideCount = todayData[0].decide_count - totalData[i].decide_count; // 오늘 확진자 수
-                        return res.json(responseTodayDecideForKakao(todayData[0].decide_count, decideCount, todayData[0].death_count));
+                        deathCount = todayData[0].death_count - totalData[i].death_count; // 오늘 사망자 수
+                        return res.json(responseTodayDecideForKakao(todayData[0].decide_count, decideCount, todayData[0].death_count, deathCount));
                     }
                 }
 
@@ -80,18 +86,18 @@ app.post('/infect', (req, res) => {
 
     request(options, function(error, res, body){
         const obj = JSON.parse(body);
-        console.log(res.statusCode);
-        console.log(obj.response.body);
+        // console.log(res.statusCode);
+        // console.log(obj.response.body);
 
         if(obj.response.body.items == ''){
-            console.log('데이터 없음 !!!!!!!!!');
+            // console.log('데이터 없음 !!!!!!!!!');
             check = false;
             return ;
         }
 
         if(typeof(obj.response.body.items.item.length) == "number"){
             // 데이터 여러개
-            console.log("여러개");
+            // console.log("여러개");
             let result = obj.response.body.items.item;
 
             result.forEach(function(item, index, arr){
@@ -100,25 +106,24 @@ app.post('/infect', (req, res) => {
                         let infectOneday = setInfectOnedayData(item);
 
                         infectOneday.save().then((data) => {
-                            console.log(data);
+                            // console.log(data);
+                            check = true;
                         });
                     }
                 });
             })
-            check = true;
         }else{
             // 데이터 1개
-            console.log("1개");
+            // console.log("1개");
             InfectOnedaySchema.findOne({seq: obj.response.body.items.item.seq}).then((data) => {
                 if(data == null){
                     let infectOneday = setInfectOnedayData(obj.response.body.items.item);
 
                     infectOneday.save().then((data) => {
-                        console.log(data);
+                        check = true;
                     });
                 }
             });
-            check = true;
         }
     });
 
@@ -148,7 +153,7 @@ function setInfectOnedayData(item){
 
 // =========== kakao response json 형식 ===========
 
-function responseTodayDecideForKakao(totalDecideCount, todayDecideCount, deathCount){
+function responseTodayDecideForKakao(totalDecideCount, todayDecideCount, totalDeathCount, todayDeathCount){
     return {
         version: "2.0",
         template: {
@@ -156,8 +161,8 @@ function responseTodayDecideForKakao(totalDecideCount, todayDecideCount, deathCo
             {
               basicCard: {
                 title: "금일 코로나 조회",
-                description: "총 확진자 : " + totalDecideCount + "\n" + "총 사망자 : " + deathCount + "\n" 
-                + "오늘 확진자 : " + todayDecideCount
+                description: "총 확진자 : " + totalDecideCount + "\n" + "총 사망자 : " + totalDeathCount + "\n" 
+                + "오늘 확진자 : " + todayDecideCount + "\n" + "오늘 사망자 : " + todayDeathCount
               }
             }
           ]
