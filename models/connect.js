@@ -13,7 +13,7 @@ const connect = () => {
     }, (error) => {
         if (error) {
             console.log('mongodb connect error', error);
-        } 
+        }
         else{
             console.log('mongodb connect success')
         }

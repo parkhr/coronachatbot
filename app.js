@@ -15,50 +15,56 @@ mongoose();
  */
 app.post('/infect/today', (req, res) => {
     let today = new Date().toISOString().split('T')[0];
-    InfectOnedaySchema.find({create_date: {$regex: '.*' + today + '.*'}}).then((result) => {
-        console.log(result);
-        if(result.length > 0){
-            let data = {
-                version: "2.0",
-                template: {
-                  outputs: [
-                    {
-                      basicCard: {
-                        title: "금일 코로나 조회",
-                        description: "총 확진자 : " + result[0].decide_count + "\n" + "총 사망자 : " + result[0].death_count
-                      }
+    InfectOnedaySchema.find({create_date: {$regex: '.*' + today + '.*'}}).then((todayData) => {
+        InfectOnedaySchema.find().then((totalData) => {
+
+            // 확진자 데이터 최근 순서로 정렬
+            if(totalData.length > 1){
+                totalData.sort(function (a, b) {
+                    return a.seq < b.seq ? 1 : a.seq > b.seq ? -1 : 0;
+                })
+            }
+
+            // 오늘 확진자 데이터가 있다면
+            if(todayData.length >= 1){
+                for(let i = 0; i < totalData.length; i++){
+                    // 전날 데이터라면 오늘과 비교
+                    if(totalData[i].seq != todayData[0].seq) {
+                        decideCount = todayData[0].decide_count - totalData[i].decide_count; // 오늘 확진자 수
+                        return res.json(responseTodayDecideForKakao(todayData[0].decide_count, decideCount, todayData[0].death_count));
                     }
-                  ]
                 }
-              }
-            // return res.json(result);
-            return res.json(data);
-        }
-        else return res.status(404).send("데이터가 없습니다.");
+
+                // 45번째줄 if문에 걸리지 않을때를 처리해야함.
+            }else return res.json(responseTodayDecideNoDataForKakao());
+        }).catch((err) => {
+            return res.json(responseTodayDecideNoDataForKakao());
+        });
+    }).catch((err) => {
+        return res.json(responseTodayDecideNoDataForKakao());
     });
 })
 
 /**
  * 전체 확진자 현황 조회
  */
-app.post('/infects', (req, res) => {
-    InfectOnedaySchema.find(function(err, arr){
-        console.log(arr);
-        if(arr.length > 0) return res.json(arr);
-        return res.status(404).send("데이터가 없습니다.");
-    });
-});
+// app.post('/infects', (req, res) => {
+//     InfectOnedaySchema.find(function(err, arr){
+//         console.log(arr);
+//         if(arr.length > 0) return res.json(arr);
+//         return res.status(404).send("데이터가 없습니다.");
+//     });
+// });
 
 /**
  * 확진자 데이터 insert
  */
 app.post('/infect', (req, res) => {
+    let check = false; // 성공 유무 체크
     let key = unescape(process.env.PUBLIC_SERVICE_KEY);
     let today = new Date().toISOString().split('T')[0];
-    console.log(today)
     today = today.split("-");
     today = today[0]+today[1]+today[2];
-    console.log(today);
 
     const options = {
         uri: "http://openapi.data.go.kr/openapi/service/rest/Covid19/getCovid19InfStateJson",
@@ -79,6 +85,7 @@ app.post('/infect', (req, res) => {
 
         if(obj.response.body.items == ''){
             console.log('데이터 없음 !!!!!!!!!');
+            check = false;
             return ;
         }
 
@@ -98,6 +105,7 @@ app.post('/infect', (req, res) => {
                     }
                 });
             })
+            check = true;
         }else{
             // 데이터 1개
             console.log("1개");
@@ -110,10 +118,11 @@ app.post('/infect', (req, res) => {
                     });
                 }
             });
+            check = true;
         }
     });
 
-    res.send('Hello World!');
+    res.json(responseRefreshDecideDataForKakao(check));
 })
 
 app.listen(port, () => {
@@ -134,4 +143,59 @@ function setInfectOnedayData(item){
         acc_exam_complete_count: item.accExamCompCnt, // 누적 검사 완료 수
         seq: item.seq // 구분자
     });
+}
+
+
+// =========== kakao response json 형식 ===========
+
+function responseTodayDecideForKakao(totalDecideCount, todayDecideCount, deathCount){
+    return {
+        version: "2.0",
+        template: {
+          outputs: [
+            {
+              basicCard: {
+                title: "금일 코로나 조회",
+                description: "총 확진자 : " + totalDecideCount + "\n" + "총 사망자 : " + deathCount + "\n" 
+                + "오늘 확진자 : " + todayDecideCount
+              }
+            }
+          ]
+        }
+      };
+}
+
+function responseTodayDecideNoDataForKakao(){
+    return {
+        version: "2.0",
+        template: {
+          outputs: [
+            {
+              basicCard: {
+                title: "금일 코로나 조회",
+                description: "데이터가 없어요."
+              }
+            }
+          ]
+        } 
+    };
+}
+
+function responseRefreshDecideDataForKakao(check){
+    let title = "";
+    if(check) str = "확진자 갱신 성공";
+    else str = "누군가 갱신했어요.";
+
+    return {
+        version: "2.0",
+        template: {
+          outputs: [
+            {
+              basicCard: {
+                title: str
+              }
+            }
+          ]
+        } 
+    };
 }
