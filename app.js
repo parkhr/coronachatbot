@@ -26,7 +26,9 @@ moment.tz.setDefault('Asia/Seoul');
 app.post('/infect/today', (req, res) => {
     var today = moment(new Date());
     console.log(today);
-    console.log(today.tz('Asia/Seoul').format().split('T')[0]);
+    today = today.tz('Asia/Seoul').format().split('T')[0];
+    console.log(today);
+
     InfectOnedaySchema.find({create_date: {$regex: '.*' + today + '.*'}}).then((todayData) => {
         InfectOnedaySchema.find().then((totalData) => {
 
@@ -73,10 +75,13 @@ app.post('/infect/today', (req, res) => {
  * 확진자 데이터 insert
  */
 app.post('/infect', (req, res) => {
-    let check = false; // 성공 유무 체크
     let key = unescape(process.env.PUBLIC_SERVICE_KEY);
-    console.log(new Date());
-    let today = new Date().toISOString().split('T')[0];
+
+    var today = moment(new Date());
+    console.log(today);
+    today = today.tz('Asia/Seoul').format().split('T')[0];
+    console.log(today);
+
     today = today.split("-");
     today = today[0]+today[1]+today[2];
 
@@ -92,7 +97,7 @@ app.post('/infect', (req, res) => {
         }
     }
 
-    request(options, function(error, res, body){
+    request(options, function(error, response, body){
         const obj = JSON.parse(body);
         // console.log(res.statusCode);
         // console.log(obj.response.body);
@@ -115,7 +120,7 @@ app.post('/infect', (req, res) => {
 
                         infectOneday.save().then((data) => {
                             // console.log(data);
-                            return res.json(responseRefreshDecideDataForKakao(true));
+                            
                         });
                     }
                 });
@@ -128,14 +133,14 @@ app.post('/infect', (req, res) => {
                     let infectOneday = setInfectOnedayData(obj.response.body.items.item);
 
                     infectOneday.save().then((data) => {
-                        return res.json(responseRefreshDecideDataForKakao(true));
+                        
                     });
                 }
             });
         }
     });
 
-    return res.json(responseRefreshDecideDataForKakao(false));
+    res.json(responseRefreshDecideDataForKakao());
 })
 
 app.listen(port, () => {
@@ -194,10 +199,8 @@ function responseTodayDecideNoDataForKakao(){
     };
 }
 
-function responseRefreshDecideDataForKakao(check){
-    let title = "";
-    if(check) str = "확진자 갱신 성공";
-    else str = "누군가 갱신했어요.";
+function responseRefreshDecideDataForKakao(){
+    let str = "갱신을 완료했어요.";
 
     return {
         version: "2.0",
