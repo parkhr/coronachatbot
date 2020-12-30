@@ -1,7 +1,8 @@
 const express = require('express');
 const mongoose = require('./models/connect');
 const request = require('request');
-var morgan = require('morgan');
+const morgan = require('morgan');
+const moment = require('moment');
 
 require('dotenv').config();
 const app = express();
@@ -15,11 +16,17 @@ mongoose();
 // morgan log
 app.use(morgan('combined'));
 
+// timezone
+require('moment-timezone');
+moment.tz.setDefault('Asia/Seoul');
+
 /**
  * 오늘 확진자 현황 조회
  */
 app.post('/infect/today', (req, res) => {
-    let today = new Date().toISOString().split('T')[0];
+    var today = moment(new Date());
+    console.log(today);
+    console.log(today.tz('Asia/Seoul').format().split('T')[0]);
     InfectOnedaySchema.find({create_date: {$regex: '.*' + today + '.*'}}).then((todayData) => {
         InfectOnedaySchema.find().then((totalData) => {
 
@@ -68,6 +75,7 @@ app.post('/infect/today', (req, res) => {
 app.post('/infect', (req, res) => {
     let check = false; // 성공 유무 체크
     let key = unescape(process.env.PUBLIC_SERVICE_KEY);
+    console.log(new Date());
     let today = new Date().toISOString().split('T')[0];
     today = today.split("-");
     today = today[0]+today[1]+today[2];
@@ -107,7 +115,7 @@ app.post('/infect', (req, res) => {
 
                         infectOneday.save().then((data) => {
                             // console.log(data);
-                            check = true;
+                            return res.json(responseRefreshDecideDataForKakao(true));
                         });
                     }
                 });
@@ -120,14 +128,14 @@ app.post('/infect', (req, res) => {
                     let infectOneday = setInfectOnedayData(obj.response.body.items.item);
 
                     infectOneday.save().then((data) => {
-                        check = true;
+                        return res.json(responseRefreshDecideDataForKakao(true));
                     });
                 }
             });
         }
     });
 
-    res.json(responseRefreshDecideDataForKakao(check));
+    return res.json(responseRefreshDecideDataForKakao(false));
 })
 
 app.listen(port, () => {
